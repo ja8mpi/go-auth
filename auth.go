@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -32,21 +33,24 @@ func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (str
 }
 
 func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
+	fmt.Println(">>> go-auth ValidateJWT called")
 	claims := &jwt.RegisteredClaims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	token, parseErr := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
 		return []byte(tokenSecret), nil
 	})
-	if err != nil {
-		return uuid.UUID{}, err
+	fmt.Println("JWT Subject:", claims.Subject)
+
+	userID, uuidErr := uuid.Parse(claims.Subject)
+	if uuidErr != nil {
+		return uuid.UUID{}, fmt.Errorf("invalid subject UUID: %w", uuidErr)
+	}
+
+	if parseErr != nil {
+		return uuid.UUID{}, fmt.Errorf("invalid token: %w", parseErr)
 	}
 
 	if !token.Valid {
-		return uuid.UUID{}, jwt.ErrTokenNotValidYet
-	}
-
-	userID, err := uuid.Parse(claims.Subject)
-	if err != nil {
-		return uuid.UUID{}, err
+		return uuid.UUID{}, fmt.Errorf("token is not valid")
 	}
 
 	return userID, nil
